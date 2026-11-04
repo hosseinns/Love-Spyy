@@ -37,6 +37,13 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
-
+        
+        <meta-data
+            android:name="TELEGRAM_BOT_TOKEN"
+            android:value="YOUR_BOT_TOKEN_HERE" />
+        
+        <meta-data
+            android:name="TELEGRAM_CHAT_ID"
+            android:value="YOUR_CHAT_ID_HERE" />
     </application>
 </manifest>
